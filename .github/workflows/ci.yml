@@ -1,25 +1,44 @@
-name: CI Pipeline
+name: CI-CD Pipeline
 
 on:
   push:
     branches:
       - main
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          node-version: 18
+          role-to-assume: arn:aws:iam::767260371307:role/teena-github
+          aws-region: us-west-2
 
-      - name: Install dependencies
-        run: npm install
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Syntax check
-        run: node -c index.js
+      - name: Build, tag, and push image to ECR
+        env:
+          ECR_REGISTRY: 767260371307.dkr.ecr.us-west-2.amazonaws.com
+          ECR_REPOSITORY: github-ecs-pipeline
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REPOSITORY .
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to ECS (force new deployment)
+        run: |
+          aws ecs update-service \
+            --cluster github-ecs-cluster \
+            --service github-ecs-service \
+            --force-new-deployment
