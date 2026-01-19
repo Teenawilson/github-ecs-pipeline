@@ -40,5 +40,5 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster github-ecs-cluster \
-            --service github-ecs-service \
+            --service github-ecs-task-service-ilzidlc3 \
             --force-new-deployment
